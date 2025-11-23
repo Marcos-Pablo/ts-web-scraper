@@ -22,3 +22,37 @@ export function getFirstParagraphFromHTML(html: string): string {
   const p = main?.querySelector('p')?.textContent ?? doc.querySelector('p')?.textContent;
   return p ?? '';
 }
+
+export function getURLsFromHTML(html: string, baseURL: string): string[] {
+  const dom = new JSDOM(html);
+  const doc = dom.window.document;
+
+  const anchorTags = doc.querySelectorAll('a');
+
+  const anchorURLS = anchorTags
+    .values()
+    .toArray()
+    .flatMap((a) => {
+      const href = a.getAttribute('href');
+      return typeof href === 'string' ? [new URL(href, baseURL).toString()] : [];
+    });
+
+  return anchorURLS;
+}
+
+export function getImagesFromHTML(html: string, baseURL: string): string[] {
+  const dom = new JSDOM(html);
+  const doc = dom.window.document;
+
+  const imgTags = doc.querySelectorAll('img');
+
+  const imgURLS = imgTags
+    .values()
+    .toArray()
+    .flatMap((img) => {
+      const src = img.getAttribute('src');
+      return typeof src === 'string' ? [new URL(src, baseURL).toString()] : [];
+    });
+
+  return imgURLS;
+}
