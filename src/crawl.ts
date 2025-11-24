@@ -8,6 +8,47 @@ type ExtractedPageData = {
   image_urls: string[];
 };
 
+export async function crawlPage(baseURL: string, currentURL: string = baseURL, pages: Record<string, number> = {}) {
+  const base = new URL(baseURL);
+  const current = new URL(currentURL);
+
+  if (base.hostname !== current.hostname) {
+    return pages;
+  }
+
+  const normalizedURL = normalizeURL(currentURL);
+
+  if (pages[normalizedURL] > 0) {
+    pages[normalizedURL]++;
+    return pages;
+  }
+
+  pages[normalizedURL] = 1;
+
+  console.log(`Crawling ${currentURL}`);
+  let html: string | undefined;
+
+  try {
+    html = await getHTML(currentURL);
+  } catch (err) {
+    console.log(`${err instanceof Error ? err.message : 'Unknown error'}`);
+    return pages;
+  }
+
+  if (!html) {
+    console.log('Got empty HTML');
+    return pages;
+  }
+
+  const pageData = extractPageData(html, currentURL);
+
+  for (const url of pageData.outgoing_links) {
+    pages = await crawlPage(baseURL, url, pages);
+  }
+
+  return pages;
+}
+
 export async function getHTML(url: string) {
   let res;
 
