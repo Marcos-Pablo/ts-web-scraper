@@ -1,3 +1,4 @@
+import { ConcurrentCrawler } from './concurrent-crawler';
 import { JSDOM } from 'jsdom';
 
 type ExtractedPageData = {
@@ -8,74 +9,10 @@ type ExtractedPageData = {
   image_urls: string[];
 };
 
-export async function crawlPage(baseURL: string, currentURL: string = baseURL, pages: Record<string, number> = {}) {
-  const base = new URL(baseURL);
-  const current = new URL(currentURL);
-
-  if (base.hostname !== current.hostname) {
-    return pages;
-  }
-
-  const normalizedURL = normalizeURL(currentURL);
-
-  if (pages[normalizedURL] > 0) {
-    pages[normalizedURL]++;
-    return pages;
-  }
-
-  pages[normalizedURL] = 1;
-
-  console.log(`Crawling ${currentURL}`);
-  let html: string | undefined;
-
-  try {
-    html = await getHTML(currentURL);
-  } catch (err) {
-    console.log(`${err instanceof Error ? err.message : 'Unknown error'}`);
-    return pages;
-  }
-
-  if (!html) {
-    console.log('Got empty HTML');
-    return pages;
-  }
-
-  const pageData = extractPageData(html, currentURL);
-
-  for (const url of pageData.outgoing_links) {
-    pages = await crawlPage(baseURL, url, pages);
-  }
-
+export async function crawlSiteAsync(baseURL: string) {
+  const crawler = new ConcurrentCrawler(baseURL, 10);
+  const pages = await crawler.crawl();
   return pages;
-}
-
-export async function getHTML(url: string) {
-  let res;
-
-  try {
-    res = await fetch(url, {
-      headers: {
-        'User-Agent': 'BootCrawler/1.0',
-      },
-    });
-  } catch (err) {
-    throw new Error(
-      `Error while trying to fetch HTML from ${url} - ${err instanceof Error ? err.message : 'Unknown error'}`,
-    );
-  }
-
-  if (res.status >= 400) {
-    console.error(`Got HTTP error: ${res.status} ${res.statusText}`);
-    return;
-  }
-
-  const contentType = res.headers.get('content-type');
-
-  if (!contentType || !contentType.includes('text/html')) {
-    console.error(`Got non-HTML response: ${contentType}`);
-    return;
-  }
-  return res.text();
 }
 
 export function extractPageData(html: string, pageURL: string): ExtractedPageData {
