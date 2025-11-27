@@ -1,7 +1,7 @@
 import { ConcurrentCrawler } from './concurrent-crawler';
 import { JSDOM } from 'jsdom';
 
-type ExtractedPageData = {
+export type ExtractedPageData = {
   url: string;
   h1: string;
   first_paragraph: string;

@@ -1,10 +1,11 @@
 import { LimitFunction } from 'p-limit';
 import pLimit from 'p-limit';
-import { getURLsFromHTML, normalizeURL } from './crawl';
+import { ExtractedPageData, extractPageData, normalizeURL } from './crawl';
 
 export class ConcurrentCrawler {
   private baseURL: URL;
-  private pages = new Map<string, number>();
+  private pages: Record<string, ExtractedPageData> = {};
+  private visited = new Set<string>();
   private limit: LimitFunction;
   private maxPages: number;
   private shouldStop = false;
@@ -62,11 +63,12 @@ export class ConcurrentCrawler {
 
     if (this.shouldStop) return;
 
-    const nextURLs = getURLsFromHTML(html, this.baseURL.toString());
+    const pageData = extractPageData(html, currentURL);
+    this.pages[normalizedURL] = pageData;
 
     let crawlPromises: Promise<void>[] = [];
 
-    for (const nextURL of nextURLs) {
+    for (const nextURL of pageData.outgoing_links) {
       if (this.shouldStop) break;
 
       const crawlPromise = this.crawlPage(nextURL);
@@ -112,7 +114,7 @@ export class ConcurrentCrawler {
   private addPageVisit(normalizedURL: string): boolean {
     if (this.shouldStop) return true;
 
-    if (this.pages.size >= this.maxPages) {
+    if (this.visited.size >= this.maxPages) {
       this.shouldStop = true;
       console.log('Reached maximum number of pages to crawl.');
       this.abortController.abort();
@@ -120,14 +122,10 @@ export class ConcurrentCrawler {
       return true;
     }
 
-    let count = this.pages.get(normalizedURL);
-
-    if (!count) {
-      this.pages.set(normalizedURL, 1);
+    if (!this.visited.has(normalizedURL)) {
+      this.visited.add(normalizedURL);
       return false;
     }
-
-    this.pages.set(normalizedURL, count + 1);
 
     return true;
   }

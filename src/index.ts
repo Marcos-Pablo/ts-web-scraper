@@ -1,5 +1,6 @@
 import { argv } from 'node:process';
 import { crawlSiteAsync } from './crawl';
+import { writeCSVReport } from './report';
 
 async function main() {
   if (argv.length !== 5) {
@@ -19,7 +20,7 @@ async function main() {
   console.log(`starting crawl of: ${baseURL} (concurrency=${maxConcurrency}, maxPages=${maxPages})...`);
   const pages = await crawlSiteAsync(baseURL, maxConcurrency, maxPages);
 
-  console.log('Result => ', pages);
+  writeCSVReport(pages);
   process.exit(0);
 }
 
