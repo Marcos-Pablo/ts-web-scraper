@@ -4,23 +4,36 @@ import { getURLsFromHTML, normalizeURL } from './crawl';
 
 export class ConcurrentCrawler {
   private baseURL: URL;
-  private pages: Record<string, number>;
+  private pages = new Map<string, number>();
   private limit: LimitFunction;
+  private maxPages: number;
+  private shouldStop = false;
+  private allTasks = new Set<Promise<void>>();
+  private abortController = new AbortController();
 
-  constructor(baseURL: string, maxConcurrency = 5) {
+  constructor(baseURL: string, maxConcurrency: number, maxPages: number) {
     this.baseURL = new URL(baseURL);
-    this.pages = {};
     this.limit = pLimit(maxConcurrency);
+    this.maxPages = Math.max(1, maxPages);
   }
 
   public async crawl() {
-    await this.crawlPage(this.baseURL.toString());
+    const rootTask = this.crawlPage(this.baseURL.toString());
+    this.allTasks.add(rootTask);
+
+    try {
+      await rootTask;
+    } finally {
+      this.allTasks.delete(rootTask);
+    }
+    await Promise.allSettled(Array.from(this.allTasks));
     return this.pages;
   }
 
   private async crawlPage(currentURL: string): Promise<void> {
-    const current = new URL(currentURL);
+    if (this.shouldStop) return;
 
+    const current = new URL(currentURL);
     if (this.baseURL.hostname !== current.hostname) {
       return;
     }
@@ -47,9 +60,22 @@ export class ConcurrentCrawler {
       return;
     }
 
+    if (this.shouldStop) return;
+
     const nextURLs = getURLsFromHTML(html, this.baseURL.toString());
 
-    const crawlPromises = nextURLs.map((nextURL) => this.crawlPage(nextURL));
+    let crawlPromises: Promise<void>[] = [];
+
+    for (const nextURL of nextURLs) {
+      if (this.shouldStop) break;
+
+      const crawlPromise = this.crawlPage(nextURL);
+      crawlPromise.finally(() => this.allTasks.delete(crawlPromise));
+
+      this.allTasks.add(crawlPromise);
+      crawlPromises.push(crawlPromise);
+    }
+
     await Promise.all(crawlPromises);
   }
 
@@ -62,6 +88,7 @@ export class ConcurrentCrawler {
           headers: {
             'User-Agent': 'BootCrawler/1.0',
           },
+          signal: this.abortController.signal,
         });
       } catch (err) {
         throw new Error(
@@ -83,12 +110,25 @@ export class ConcurrentCrawler {
   }
 
   private addPageVisit(normalizedURL: string): boolean {
-    if (!this.pages[normalizedURL]) {
-      this.pages[normalizedURL] = 0;
+    if (this.shouldStop) return true;
+
+    if (this.pages.size >= this.maxPages) {
+      this.shouldStop = true;
+      console.log('Reached maximum number of pages to crawl.');
+      this.abortController.abort();
+
+      return true;
     }
 
-    this.pages[normalizedURL]++;
+    let count = this.pages.get(normalizedURL);
 
-    return this.pages[normalizedURL] > 1;
+    if (!count) {
+      this.pages.set(normalizedURL, 1);
+      return false;
+    }
+
+    this.pages.set(normalizedURL, count + 1);
+
+    return true;
   }
 }

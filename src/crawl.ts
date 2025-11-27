@@ -9,10 +9,9 @@ type ExtractedPageData = {
   image_urls: string[];
 };
 
-export async function crawlSiteAsync(baseURL: string) {
-  const crawler = new ConcurrentCrawler(baseURL, 10);
-  const pages = await crawler.crawl();
-  return pages;
+export async function crawlSiteAsync(baseURL: string, maxConcurrency: number, maxPages: number) {
+  const crawler = new ConcurrentCrawler(baseURL, maxConcurrency, maxPages);
+  return await crawler.crawl();
 }
 
 export function extractPageData(html: string, pageURL: string): ExtractedPageData {
