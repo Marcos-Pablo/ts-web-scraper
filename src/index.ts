@@ -19,6 +19,11 @@ async function main() {
 
   console.log(`starting crawl of: ${baseURL} (concurrency=${maxConcurrency}, maxPages=${maxPages})...`);
   const pages = await crawlSiteAsync(baseURL, maxConcurrency, maxPages);
+  console.log('Finished crawling.');
+  const firstPage = Object.values(pages)[0];
+  if (firstPage) {
+    console.log(`First page record: ${firstPage['url']} - ${firstPage['h1']}`);
+  }
 
   writeCSVReport(pages);
   process.exit(0);
